@@ -1,20 +1,32 @@
 import 'package:clean_architecture/data/http/http_client.dart';
+import 'package:clean_architecture/data/http/http_error.dart';
+import 'package:clean_architecture/data/models/remote_account_model.dart';
+import 'package:clean_architecture/domain/entities/account_entity.dart';
+import 'package:clean_architecture/domain/helpers/domain_error.dart';
 import 'package:clean_architecture/domain/usecases/authentication.dart';
+import 'package:meta/meta.dart';
 
-class RemoteAuthentication {
+class RemoteAuthentication implements Authentication {
   final HttpClient httpClient;
   final String url;
 
-  RemoteAuthentication({required this.httpClient, required this.url});
+  RemoteAuthentication({@required this.httpClient, @required this.url});
 
-  Future<void> auth(AuthenticationParams params) async {
+  @override
+  Future<AccountEntity> auth(AuthenticationParams params) async {
     final body = RemoteAuthenticationParams.fromDomain(params).toJson();
 
-    await httpClient.request(
-      url: url,
-      method: 'post',
-      body: body,
-    );
+    try {
+      final httpResponse = await httpClient.request(
+        url: url,
+        method: 'post',
+        body: body,
+      );
+
+      return RemoteAccountModel.fromJson(httpResponse).toEntity();
+    } on HttpError catch (error) {
+      throw error == HttpError.unauthorized ? DomainError.invalidCredentials : DomainError.unexpected;
+    }
   }
 }
 
@@ -23,8 +35,8 @@ class RemoteAuthenticationParams {
   final String password;
 
   RemoteAuthenticationParams({
-    required this.email,
-    required this.password,
+    @required this.email,
+    @required this.password,
   });
 
   factory RemoteAuthenticationParams.fromDomain(AuthenticationParams params) =>
